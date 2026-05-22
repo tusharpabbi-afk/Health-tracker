@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+<title>Tushar Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{background:#f5f5f2;font-family:'Inter',sans-serif;color:#1a1a1a;padding-bottom:80px;min-height:100vh;}
+input,textarea,button{font-family:inherit;outline:none;}
+input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
+.tab-bar{display:flex;background:#fff;border-bottom:1px solid #ebebeb;position:sticky;top:0;z-index:100;}
+.tab-btn{flex:1;padding:11px 2px;background:transparent;border:none;border-bottom:2px solid transparent;color:#bbb;font-size:8px;font-family:'JetBrains Mono',monospace;letter-spacing:0;cursor:pointer;transition:color .2s;}
+.tab-btn.active{color:#16a34a;border-bottom-color:#16a34a;}
+.card{background:#fff;border:1px solid #ebebeb;border-radius:16px;padding:16px;margin-bottom:14px;box-shadow:0 1px 6px rgba(0,0,0,.04);}
+.card-sm{background:#fff;border:1px solid #e8e8e8;border-radius:12px;padding:12px 14px;margin-bottom:8px;}
+.iStyle{background:#fafafa;border:1px solid #e8e8e8;border-radius:8px;padding:9px 11px;color:#1a1a1a;font-size:12px;font-family:'JetBrains Mono',monospace;width:100%;}
+.dashed-btn{width:100%;background:transparent;border:1px dashed #e0e0e0;color:#bbb;border-radius:10px;padding:13px;font-size:10px;font-family:'JetBrains Mono',monospace;cursor:pointer;letter-spacing:1px;display:block;}
+.action-btn{padding:10px;border-radius:8px;font-size:10px;font-family:'JetBrains Mono',monospace;cursor:pointer;letter-spacing:.5px;border:none;}
+.mono{font-family:'JetBrains Mono',monospace;}
+.syne{font-family:'Syne',sans-serif;}
+.section-label{font-size:9px;font-family:'JetBrains Mono',monospace;color:#bbb;letter-spacing:2px;margin-bottom:8px;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useCallback}=React;
+
+// ── Storage: localStorage, permanent ──
+const LS={
+  get:(k)=>{ try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch{return null;} },
+  set:(k,v)=>{ try{localStorage.setItem(k,JSON.stringify(v));}catch{} }
+};
+
+// ── Constants ──
+const DAILY_GOALS={calories:1750,protein:140,carbs:170,fat:50,fiber:30};
+const GYM_JUNE=70,GYM_YEAR=200;
+const STEP_GOALS={day:8000,weekend:6000,week:50000};
+const SKILL_GOAL={day:30,week:180};
+const SKILL_TAGS=["AI","Blockchain","Fintech","Other"];
+const SKILL_TAG_COLORS={"AI":"#7c3aed","Blockchain":"#0891b2","Fintech":"#ea580c","Other":"#64748b"};
+const TODAY=new Date().toISOString().split("T")[0];
+
+// ── Workout Plan ──
+const WP={
+  A:{label:"Chest + Triceps",color:"#dc2626",light:"#fef2f2",border:"#fecaca",emoji:"💪",timing:"~55 min",
+    warmup:["Treadmill / Cross trainer 10 min","Dynamic stretch 3 min","Dead hangs 2×30s","10 Pull-ups (activation, not failure)"],
+    blocks:[
+      {name:"Chest",note:"3–4 exercises · 3 sets each",exercises:[
+        {name:"Flat Barbell / DB Bench Press",sets:3,reps:"8–12"},{name:"Incline DB Press",sets:3,reps:"10–12"},
+        {name:"Cable Fly / Pec Deck",sets:3,reps:"12–15"},{name:"Push-ups (finisher)",sets:3,reps:"max"}]},
+      {name:"Triceps",note:"2–3 exercises · 3 sets · superset during chest rest",exercises:[
+        {name:"Cable Pushdown",sets:3,reps:"12–15"},{name:"Overhead Tricep Extension",sets:3,reps:"10–12"},
+        {name:"Bench Dips (optional)",sets:3,reps:"12–15"}]}],
+    core:["Plank 3×45s","Crunches 3×20","Leg Raises 3×15"],
+    cooldown:["Chest doorframe stretch","Tricep overhead stretch","Neck side stretch (gentle)"]},
+  B:{label:"Shoulder + Biceps",color:"#7c3aed",light:"#faf5ff",border:"#e9d5ff",emoji:"🏋️",timing:"~53 min",
+    warmup:["Treadmill / Cross trainer 10 min","Dynamic stretch 3 min","Dead hangs 2×30s","10 Pull-ups (activation)"],
+    blocks:[
+      {name:"Shoulders",note:"3–4 exercises · 3 sets · NO behind-neck press ⚠️",exercises:[
+        {name:"Seated DB Overhead Press (front)",sets:3,reps:"8–12"},{name:"Lateral Raises",sets:3,reps:"12–15"},
+        {name:"Front Raises",sets:3,reps:"12–15"},{name:"Rear Delt Fly / Face Pulls",sets:3,reps:"12–15"}]},
+      {name:"Biceps",note:"2–3 exercises · 3 sets · superset during shoulder rest",exercises:[
+        {name:"Barbell / DB Curl",sets:3,reps:"10–12"},{name:"Hammer Curl",sets:3,reps:"10–12"},
+        {name:"Concentration Curl (optional)",sets:3,reps:"12–15"}]}],
+    core:["Plank 3×45s","Russian Twist 3×20","Bicycle Crunch 3×20"],
+    cooldown:["Shoulder cross-body stretch","Bicep wall stretch","Neck side tilt (gentle, no press)"]},
+  C:{label:"Back + Sides",color:"#0284c7",light:"#f0f9ff",border:"#bae6fd",emoji:"🦅",timing:"~50 min",
+    warmup:["Treadmill / Cross trainer 10 min","Dynamic stretch 3 min","Dead hangs 2×30s — extra focus today","10 Pull-ups (these count as back warm-up)"],
+    blocks:[
+      {name:"Back + Lats",note:"5–6 exercises · 3 sets · NO behind-neck pull-down ⚠️",exercises:[
+        {name:"Lat Pulldown (front)",sets:3,reps:"10–12"},{name:"Seated Cable Row",sets:3,reps:"10–12"},
+        {name:"Bent-over DB Row",sets:3,reps:"10–12"},{name:"Single Arm DB Row",sets:3,reps:"10–12"},
+        {name:"Hyperextensions / Back Extension",sets:3,reps:"12–15"},{name:"Shrugs (optional)",sets:3,reps:"15–20"}]}],
+    core:["Side Plank 3×30s each side","Oblique Crunches 3×20","Dead Bug 3×10"],
+    cooldown:["Child's pose","Cat-cow stretch","Lat wall stretch","Neck gentle roll"]},
+  D:{label:"Legs",color:"#059669",light:"#f0fdf4",border:"#a7f3d0",emoji:"🦵",timing:"~50 min",
+    warmup:["Treadmill / Cross trainer 10 min","Leg swings & hip circles 3 min","Dead hangs 2×30s","10 Pull-ups"],
+    blocks:[
+      {name:"Legs",note:"5–6 exercises · 3 sets each",exercises:[
+        {name:"Barbell / Goblet Squat",sets:3,reps:"8–12"},{name:"Leg Press",sets:3,reps:"10–15"},
+        {name:"Walking Lunges",sets:3,reps:"12 each"},{name:"Leg Curl (hamstring)",sets:3,reps:"12–15"},
+        {name:"Leg Extension (quad)",sets:3,reps:"12–15"},{name:"Standing Calf Raise",sets:3,reps:"15–20"}]}],
+    core:["Plank 3×45s","Leg Raises 3×15","Hollow Body Hold 3×20s"],
+    cooldown:["Quad stretch","Hamstring stretch","Hip flexor lunge stretch","Pigeon pose"]},
+  F:{label:"Swimming",color:"#0891b2",light:"#ecfeff",border:"#a5f3fc",emoji:"🏊",timing:"45–60 min",
+    warmup:["Arm circles & shoulder rolls 2 min","Hip openers 1 min","Easy laps 5 min freestyle"],
+    blocks:[
+      {name:"Main Swim Set",note:"Mix freestyle + backstroke · rest 30–60s between sets",exercises:[
+        {name:"Freestyle laps (focus rotation, don't lift head)",sets:4,reps:"4 lengths"},
+        {name:"Backstroke laps (great for neck)",sets:3,reps:"4 lengths"},
+        {name:"Freestyle steady pace",sets:2,reps:"6 lengths"},
+        {name:"Optional: kickboard drill",sets:2,reps:"2 lengths"}]},
+      {name:"Cooldown Swim",note:"Easy pace, focus breath",exercises:[
+        {name:"Slow freestyle / float",sets:1,reps:"5 min"}]}],
+    core:[],
+    cooldown:["Poolside shoulder cross-body stretch","Lat wall stretch","Chest doorframe stretch","Hip flexor stretch","Neck gentle side tilt (no force)","⚠️ AVOID breaststroke if neck flares"]},
+  E:{label:"Cardio + Core + Mobility",color:"#d97706",light:"#fffbeb",border:"#fde68a",emoji:"🌊",timing:"~55 min",
+    warmup:[],
+    blocks:[
+      {name:"Cardio",note:"25–30 min steady state",exercises:[{name:"Treadmill incline walk OR Cross trainer",sets:1,reps:"25–30 min"}]},
+      {name:"Core Block",note:"Full core circuit",exercises:[
+        {name:"Plank",sets:3,reps:"60s"},{name:"Crunches",sets:3,reps:"25"},{name:"Leg Raises",sets:3,reps:"15"},
+        {name:"Russian Twist",sets:3,reps:"20"},{name:"Bicycle Crunch",sets:3,reps:"20"},{name:"Side Plank",sets:2,reps:"40s each"}]},
+      {name:"Mobility & Stretch",note:"Full body — take your time",exercises:[
+        {name:"Dead hangs",sets:3,reps:"30–45s"},{name:"Cat-cow + Child's pose",sets:2,reps:"60s"},
+        {name:"Hip flexor stretch",sets:2,reps:"40s each"},{name:"Pigeon pose",sets:1,reps:"60s each"},
+        {name:"Thoracic rotation",sets:2,reps:"10 each side"},{name:"Neck gentle side tilt (no force)",sets:2,reps:"30s each"}]}],
+    core:[],cooldown:[]}
+};
+
+// ── Food DB ──
+const FOOD_DB=[
+  {name:"Arhar Dal (1 katori, ghee tadka)",cal:200,p:10,c:28,f:5,fi:4},
+  {name:"Dal Makhani (1 katori)",cal:280,p:12,c:30,f:12,fi:5},
+  {name:"Rajma (1 katori)",cal:230,p:13,c:38,f:3,fi:8},
+  {name:"Chana Dal (1 katori)",cal:210,p:12,c:32,f:4,fi:6},
+  {name:"Moong Dal (1 katori)",cal:150,p:10,c:22,f:2,fi:4},
+  {name:"Palak Paneer (1 katori)",cal:280,p:14,c:10,f:20,fi:3},
+  {name:"Paneer Bhurji (100g)",cal:260,p:18,c:6,f:18,fi:1},
+  {name:"Aloo Sabzi (1 katori)",cal:180,p:3,c:30,f:6,fi:3},
+  {name:"Mix Veg (1 katori)",cal:120,p:4,c:15,f:5,fi:4},
+  {name:"Chole (1 katori)",cal:270,p:14,c:40,f:6,fi:9},
+  {name:"Fulka / Phulka (1 piece)",cal:70,p:2,c:14,f:1,fi:1},
+  {name:"Chapati with ghee (1 piece)",cal:100,p:3,c:15,f:3,fi:1},
+  {name:"Paratha plain (1 piece)",cal:180,p:4,c:25,f:7,fi:2},
+  {name:"Paratha stuffed aloo (1 piece)",cal:250,p:5,c:35,f:10,fi:3},
+  {name:"Steamed Rice (1 katori, cooked)",cal:200,p:4,c:44,f:0,fi:1},
+  {name:"Jeera Rice (1 katori)",cal:230,p:4,c:46,f:4,fi:1},
+  {name:"Puri (1 piece)",cal:120,p:2,c:15,f:6,fi:1},
+  {name:"Naan (1 piece)",cal:280,p:8,c:50,f:5,fi:2},
+  {name:"Whole Egg boiled (1)",cal:78,p:6,c:1,f:5,fi:0},
+  {name:"Egg white (1)",cal:17,p:4,c:0,f:0,fi:0},
+  {name:"Egg bhurji 2 eggs",cal:200,p:14,c:4,f:14,fi:0},
+  {name:"Omelette 2 eggs with veggies",cal:220,p:14,c:5,f:16,fi:1},
+  {name:"Paneer (100g)",cal:265,p:18,c:4,f:20,fi:0},
+  {name:"Curd / Dahi (1 katori, 150g)",cal:90,p:6,c:7,f:4,fi:0},
+  {name:"Amul 15g Protein Lassi",cal:150,p:15,c:18,f:2,fi:0},
+  {name:"Whey Protein (1 scoop in water)",cal:120,p:24,c:3,f:2,fi:0},
+  {name:"Whey Protein (1 scoop in milk 250ml)",cal:240,p:30,c:18,f:6,fi:0},
+  {name:"Milk full fat (250ml)",cal:150,p:8,c:12,f:8,fi:0},
+  {name:"Milk toned (250ml)",cal:120,p:8,c:12,f:4,fi:0},
+  {name:"Greek Yogurt (150g)",cal:130,p:15,c:8,f:4,fi:0},
+  {name:"Amul Butter (10g)",cal:74,p:0,c:0,f:8,fi:0},
+  {name:"Desi Ghee (1 tsp, 5g)",cal:45,p:0,c:0,f:5,fi:0},
+  {name:"Chicken Breast grilled (150g)",cal:240,p:45,c:0,f:5,fi:0},
+  {name:"Chicken Curry (150g)",cal:280,p:30,c:8,f:14,fi:1},
+  {name:"Boiled Chicken (100g)",cal:165,p:31,c:0,f:4,fi:0},
+  {name:"Almonds (20g, ~15 pieces)",cal:116,p:4,c:4,f:10,fi:2},
+  {name:"Banana (1 medium)",cal:90,p:1,c:23,f:0,fi:3},
+  {name:"Apple (1 medium)",cal:80,p:0,c:21,f:0,fi:4},
+  {name:"Peanut Butter (1 tbsp, 15g)",cal:90,p:4,c:3,f:8,fi:1},
+  {name:"Roasted Chana (30g)",cal:110,p:7,c:17,f:2,fi:4},
+  {name:"Sprouts (1 katori)",cal:80,p:6,c:12,f:1,fi:3},
+  {name:"Poha (1 plate)",cal:250,p:5,c:45,f:6,fi:2},
+  {name:"Upma (1 plate)",cal:220,p:5,c:38,f:5,fi:3},
+  {name:"Idli (2 pieces)",cal:140,p:4,c:28,f:1,fi:1},
+  {name:"Dosa plain (1)",cal:170,p:4,c:30,f:4,fi:1},
+  {name:"Sambar (1 katori)",cal:90,p:4,c:14,f:2,fi:4},
+  {name:"Chai with milk & sugar (1 cup)",cal:60,p:2,c:10,f:2,fi:0},
+  {name:"Black Coffee / Green Tea",cal:5,p:0,c:1,f:0,fi:0},
+  {name:"Coconut Water (250ml)",cal:50,p:0,c:11,f:0,fi:0},
+  {name:"Dal + 3 Fulka + Lassi (lunch)",cal:560,p:25,c:65,f:14,fi:8},
+  {name:"Dal Chawal (1 katori each)",cal:400,p:14,c:72,f:5,fi:5},
+  {name:"Rajma Chawal",cal:480,p:18,c:82,f:6,fi:9},
+  {name:"Chole Bhature (1 plate)",cal:650,p:16,c:80,f:28,fi:8},
+  {name:"Pav Bhaji (1 plate)",cal:500,p:10,c:75,f:18,fi:6},
+  {name:"Veg Thali (full)",cal:700,p:22,c:100,f:20,fi:10},
+];
+
+// ── Helpers ──
+function fmtDate(d){return new Date(d+"T12:00:00").toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short"});}
+function daysUntil(ds){return Math.max(0,Math.ceil((new Date(ds)-new Date())/86400000));}
+function getDays(y,m){return new Date(y,m+1,0).getDate();}
+function getFirstDay(y,m){return new Date(y,m,1).getDay();}
+function tods(y,m,d){return `${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;}
+
+// ── MacroBar ──
+function MacroBar({label,value,max,color,unit="g"}){
+  const pct=Math.min((value/max)*100,100),over=value>max;
+  return <div style={{marginBottom:10}}>
+    <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:4,fontFamily:"'JetBrains Mono',monospace"}}>
+      <span style={{color:"#999"}}>{label}</span>
+      <span style={{color:over?"#e53e3e":"#444"}}>{value}{unit} <span style={{color:"#ccc"}}>/ {max}{unit}</span></span>
+    </div>
+    <div style={{height:6,background:"#eee",borderRadius:3,overflow:"hidden"}}>
+      <div style={{height:"100%",width:`${pct}%`,background:over?"#fc8181":color,borderRadius:3,transition:"width .5s"}}/>
+    </div>
+  </div>;
+}
+
+// ── CalGrid ──
+function CalGrid({year,month,onPrev,onNext,renderDay}){
+  const days=getDays(year,month),first=getFirstDay(year,month);
+  const mn=new Date(year,month,1).toLocaleDateString("en-IN",{month:"long",year:"numeric"});
+  const cells=[];
+  for(let i=0;i<first;i++)cells.push(null);
+  for(let d=1;d<=days;d++)cells.push(d);
+  return <div>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+      <button onClick={onPrev} style={{background:"transparent",border:"1px solid #ebebeb",color:"#aaa",borderRadius:6,width:28,height:28,cursor:"pointer",fontSize:14}}>‹</button>
+      <span style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,color:"#1a1a1a"}}>{mn}</span>
+      <button onClick={onNext} style={{background:"transparent",border:"1px solid #ebebeb",color:"#aaa",borderRadius:6,width:28,height:28,cursor:"pointer",fontSize:14}}>›</button>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:4}}>
+      {["Su","Mo","Tu","We","Th","Fr","Sa"].map(d=><div key={d} style={{textAlign:"center",fontSize:9,fontFamily:"monospace",color:"#bbb",padding:"3px 0"}}>{d}</div>)}
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
+      {cells.map((day,i)=><div key={i}>{day?renderDay(day,year,month):<div/>}</div>)}
+    </div>
+  </div>;
+}
+
+// ── MealCard ──
+function MealCard({meal,onDelete}){
+  const [open,setOpen]=useState(false);
+  return <div onClick={()=>setOpen(!open)} style={{background:"#fff",border:"1px solid #e8e8e8",borderRadius:12,padding:"12px 14px",marginBottom:8,cursor:"pointer",boxShadow:open?"0 2px 12px rgba(0,0,0,.06)":"0 1px 3px rgba(0,0,0,.04)"}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}}>
+          <span style={{fontFamily:"monospace",fontSize:10,color:"#bbb"}}>{meal.time}</span>
+          <span style={{fontWeight:700,color:"#1a1a1a",fontSize:14,fontFamily:"'Syne',sans-serif"}}>{meal.name}</span>
+        </div>
+        <p style={{margin:"3px 0 0",fontSize:11,color:"#aaa",lineHeight:1.4,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"85%"}}>{meal.description}</p>
+      </div>
+      <div style={{textAlign:"right",marginLeft:10,flexShrink:0}}>
+        <div style={{fontSize:20,fontWeight:800,color:"#1a1a1a",fontFamily:"'Syne',sans-serif",lineHeight:1}}>{meal.macros.calories}</div>
+        <div style={{fontSize:8,color:"#ccc",fontFamily:"monospace"}}>KCAL</div>
+      </div>
+    </div>
+    {open&&<div style={{marginTop:12,paddingTop:10,borderTop:"1px solid #f0f0f0"}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:10}}>
+        {[{l:"Protein",v:meal.macros.protein,c:"#16a34a"},{l:"Carbs",v:meal.macros.carbs,c:"#2563eb"},{l:"Fat",v:meal.macros.fat,c:"#ea580c"},{l:"Fiber",v:meal.macros.fiber||0,c:"#7c3aed"}].map(m=>
+          <div key={m.l} style={{background:"#fafafa",borderRadius:8,padding:"8px 6px",textAlign:"center",border:"1px solid #f0f0f0"}}>
+            <div style={{fontSize:15,fontWeight:700,color:m.c,fontFamily:"'Syne',sans-serif"}}>{m.v}g</div>
+            <div style={{fontSize:8,color:"#bbb",fontFamily:"monospace"}}>{m.l.toUpperCase()}</div>
+          </div>)}
+      </div>
+      <button onClick={e=>{e.stopPropagation();onDelete(meal.id);}} style={{width:"100%",background:"transparent",border:"1px solid #fee2e2",color:"#fca5a5",borderRadius:6,padding:"5px 0",fontSize:10,fontFamily:"monospace",cursor:"pointer"}}>REMOVE</button>
+    </div>}
+  </div>;
+}
+
+// ── WorkoutView ──
+function WorkoutView({planKey,loggedSets,onLogSet}){
+  const [openBlock,setOpenBlock]=useState(null);
+  const p=WP[planKey];if(!p)return null;
+  const totalDone=Object.values(loggedSets||{}).reduce((a,s)=>a+(s||0),0);
+  const totalSets=p.blocks.reduce((a,b)=>a+b.exercises.reduce((x,e)=>x+e.sets,0),0);
+  return <div>
+    <div style={{background:p.light,border:`1px solid ${p.border}`,borderRadius:16,padding:16,marginBottom:12}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+        <div>
+          <div style={{fontSize:9,fontFamily:"monospace",color:p.color,letterSpacing:2,marginBottom:4,opacity:.7}}>TODAY'S SESSION</div>
+          <div style={{fontSize:22,fontWeight:800,fontFamily:"'Syne',sans-serif",color:p.color}}>{p.emoji} {p.label}</div>
+          <div style={{fontSize:10,fontFamily:"monospace",color:p.color,opacity:.6,marginTop:2}}>⏱ {p.timing}</div>
+        </div>
+        <div style={{textAlign:"right"}}>
+          <div style={{fontSize:26,fontWeight:800,fontFamily:"'Syne',sans-serif",color:p.color}}>{totalDone}/{totalSets}</div>
+          <div style={{fontSize:8,fontFamily:"monospace",color:p.color,opacity:.6}}>SETS DONE</div>
+        </div>
+      </div>
+      <div style={{marginTop:10,height:6,background:"rgba(0,0,0,.08)",borderRadius:3,overflow:"hidden"}}>
+        <div style={{height:"100%",width:`${totalSets?(totalDone/totalSets)*100:0}%`,background:p.color,borderRadius:3,transition:"width .4s"}}/>
+      </div>
+    </div>
+    {p.warmup.length>0&&<div className="card-sm" style={{marginBottom:10}}>
+      <div className="section-label">WARM-UP</div>
+      {p.warmup.map((w,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}>
+        <div style={{width:5,height:5,borderRadius:"50%",background:"#e0e0e0",flexShrink:0}}/>
+        <span style={{fontSize:12,color:"#555"}}>{w}</span>
+      </div>)}
+    </div>}
+    {p.blocks.map((block,bi)=><div key={bi} style={{background:"#fff",border:"1px solid #ebebeb",borderRadius:12,marginBottom:10,overflow:"hidden"}}>
+      <div onClick={()=>setOpenBlock(openBlock===bi?null:bi)} style={{padding:"12px 14px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div>
+          <div style={{fontWeight:700,fontFamily:"'Syne',sans-serif",fontSize:15,color:"#1a1a1a"}}>{block.name}</div>
+          <div style={{fontSize:10,color:"#bbb",fontFamily:"monospace",marginTop:2}}>{block.note}</div>
+        </div>
+        <span style={{color:"#ccc",fontSize:16}}>{openBlock===bi?"▲":"▼"}</span>
+      </div>
+      {openBlock===bi&&<div style={{borderTop:"1px solid #f5f5f5",padding:"10px 14px 14px"}}>
+        {block.exercises.map((ex,ei)=>{
+          const key=`${bi}-${ei}`,done=loggedSets?.[key]||0;
+          return <div key={ei} style={{marginBottom:12,paddingBottom:12,borderBottom:ei<block.exercises.length-1?"1px solid #f8f8f8":"none"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
+              <div>
+                <div style={{fontSize:13,fontWeight:600,color:"#1a1a1a"}}>{ex.name}</div>
+                <div style={{fontSize:10,fontFamily:"monospace",color:"#bbb",marginTop:1}}>{ex.sets} sets · {ex.reps} reps</div>
+              </div>
+              <div style={{fontSize:12,fontFamily:"'Syne',sans-serif",fontWeight:700,color:done>=ex.sets?p.color:"#ccc"}}>{done}/{ex.sets}</div>
+            </div>
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              {Array.from({length:ex.sets}).map((_,si)=><button key={si}
+                onClick={()=>onLogSet(key,si<done?si:si+1)}
+                style={{width:36,height:36,borderRadius:8,cursor:"pointer",background:si<done?p.light:"#f5f5f5",border:si<done?`1.5px solid ${p.border}`:"1.5px solid #ebebeb",color:si<done?p.color:"#ccc",fontSize:14,fontWeight:700,transition:"all .15s"}}>
+                {si<done?"✓":si+1}
+              </button>)}
+              {done>0&&<button onClick={()=>onLogSet(key,0)} style={{fontSize:10,fontFamily:"monospace",background:"none",border:"none",color:"#ddd",cursor:"pointer"}}>reset</button>}
+            </div>
+          </div>;
+        })}
+      </div>}
+    </div>)}
+    {p.core.length>0&&<div className="card-sm" style={{marginBottom:10}}>
+      <div className="section-label">CORE</div>
+      {p.core.map((c,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}>
+        <div style={{width:5,height:5,borderRadius:"50%",background:"#e0e0e0",flexShrink:0}}/>
+        <span style={{fontSize:12,color:"#555"}}>{c}</span>
+      </div>)}
+    </div>}
+    {p.cooldown.length>0&&<div className="card-sm">
+      <div className="section-label">COOLDOWN</div>
+      {p.cooldown.map((c,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}>
+        <div style={{width:5,height:5,borderRadius:"50%",background:"#e0e0e0",flexShrink:0}}/>
+        <span style={{fontSize:12,color:"#555"}}>{c}</span>
+      </div>)}
+    </div>}
+  </div>;
+}
+
+// ── Main App ──
+function App(){
+  const [tab,setTab]=useState("workout");
+  const [viewDate,setViewDate]=useState(TODAY);
+  const now=new Date();
+  const [calMonth,setCalMonth]=useState({y:now.getFullYear(),m:now.getMonth()});
+
+  // Persistent state — all loaded from localStorage immediately
+  const [allDays,setAllDays]=useState(()=>LS.get("td-days")||{});
+  const [gymData,setGymData]=useState(()=>LS.get("td-gym")||{sessions:38,gymDates:{}});
+  const [workoutLog,setWorkoutLog]=useState(()=>LS.get("td-wlog")||{});
+  const [stepsData,setStepsData]=useState(()=>LS.get("td-steps")||{});
+  const [skillData,setSkillData]=useState(()=>LS.get("td-skill")||{});
+
+  // Save helpers — save immediately on every change
+  function saveDays(u){setAllDays(u);LS.set("td-days",u);}
+  function saveGym(u){setGymData(u);LS.set("td-gym",u);}
+  function saveWLog(u){setWorkoutLog(u);LS.set("td-wlog",u);}
+  function saveSteps(u){setStepsData(u);LS.set("td-steps",u);}
+  function saveSkill(u){setSkillData(u);LS.set("td-skill",u);}
+
+  // Meal form
+  const [adding,setAdding]=useState(false);
+  const [form,setForm]=useState({name:"",time:"",description:""});
+  const [macros,setMacros]=useState({calories:"",protein:"",carbs:"",fat:"",fiber:""});
+  const [foodSearch,setFoodSearch]=useState("");
+  const [searchRes,setSearchRes]=useState([]);
+  const [formErr,setFormErr]=useState("");
+
+  // Steps
+  const [stepInput,setStepInput]=useState("");
+  useEffect(()=>{setStepInput(stepsData[viewDate]?String(stepsData[viewDate]):"");const sk=skillData[viewDate];setSkillMin(sk?String(sk.minutes):"");setSkillNote(sk?.note||"");setSkillTag(sk?.tag||"AI");setEditingSkill(false);},[viewDate]);
+
+  // Picking workout
+  const [pickingPlan,setPickingPlan]=useState(false);
+  const [skillMin,setSkillMin]=useState("");
+  const [skillNote,setSkillNote]=useState("");
+  const [skillTag,setSkillTag]=useState("AI");
+  const [editingSkill,setEditingSkill]=useState(false);
+  const [showBackup,setShowBackup]=useState(false);
+  const [backupText,setBackupText]=useState("");
+  const [importText,setImportText]=useState("");
+  const [importMsg,setImportMsg]=useState("");
+
+  function exportData(){
+    const data={days:LS.get("td-days")||{},gym:LS.get("td-gym")||{sessions:38,gymDates:{}},wlog:LS.get("td-wlog")||{},steps:LS.get("td-steps")||{},skill:LS.get("td-skill")||{},exportedAt:new Date().toISOString()};
+    setBackupText(JSON.stringify(data,null,2));
+  }
+  function importData(){
+    try{
+      const d=JSON.parse(importText);
+      if(d.days)LS.set("td-days",d.days);
+      if(d.gym)LS.set("td-gym",d.gym);
+      if(d.wlog)LS.set("td-wlog",d.wlog);
+      if(d.steps)LS.set("td-steps",d.steps);
+      if(d.skill)LS.set("td-skill",d.skill);
+      setImportMsg("✓ Restored! Reloading...");
+      setTimeout(()=>location.reload(),800);
+    }catch(e){setImportMsg("Invalid backup text. Check format.");}
+  }
+  function copyBackup(){
+    if(navigator.clipboard){navigator.clipboard.writeText(backupText).then(()=>setImportMsg("✓ Copied to clipboard")).catch(()=>setImportMsg("Long-press text below to copy"));}
+    else{setImportMsg("Long-press text below to copy");}
+  }
+
+  const todayMeals=allDays[viewDate]?.meals||[];
+  const totals=todayMeals.reduce((a,m)=>({
+    calories:a.calories+(m.macros.calories||0),protein:a.protein+(m.macros.protein||0),
+    carbs:a.carbs+(m.macros.carbs||0),fat:a.fat+(m.macros.fat||0),fiber:a.fiber+(m.macros.fiber||0)
+  }),{calories:0,protein:0,carbs:0,fat:0,fiber:0});
+
+  function addMeal(){
+    const cal=parseInt(macros.calories)||0;
+    if(!form.name&&!form.description){setFormErr("Add meal name or description.");return;}
+    if(!cal){setFormErr("Enter calories.");return;}
+    const meal={id:Date.now(),name:form.name||form.description,time:form.time||new Date().toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit",hour12:false}),description:form.description||form.name,
+      macros:{calories:cal,protein:parseInt(macros.protein)||0,carbs:parseInt(macros.carbs)||0,fat:parseInt(macros.fat)||0,fiber:parseInt(macros.fiber)||0},micros:{}};
+    saveDays({...allDays,[viewDate]:{meals:[...todayMeals,meal]}});
+    setForm({name:"",time:"",description:""});setMacros({calories:"",protein:"",carbs:"",fat:"",fiber:""});
+    setFoodSearch("");setSearchRes([]);setAdding(false);setFormErr("");
+  }
+
+  function deleteMeal(id){saveDays({...allDays,[viewDate]:{meals:todayMeals.filter(m=>m.id!==id)}});}
+
+  function toggleGym(ds){
+    const on=gymData.gymDates[ds],nd={...gymData.gymDates};
+    if(on){delete nd[ds];saveGym({sessions:gymData.sessions-1,gymDates:nd});}
+    else{nd[ds]=true;saveGym({sessions:gymData.sessions+1,gymDates:nd});}
+  }
+
+  function selectPlan(key){
+    saveWLog({...workoutLog,[viewDate]:{plan:key,sets:workoutLog[viewDate]?.sets||{}}});
+    if(!gymData.gymDates[viewDate]){const nd={...gymData.gymDates,[viewDate]:true};saveGym({sessions:gymData.sessions+1,gymDates:nd});}
+    setPickingPlan(false);
+  }
+
+  function logSet(ds,key,val){
+    const cur=workoutLog[ds]||{plan:null,sets:{}};
+    saveWLog({...workoutLog,[ds]:{...cur,sets:{...cur.sets,[key]:val}}});
+  }
+
+  function foodColor(ds){
+    const ms=allDays[ds]?.meals||[];if(!ms.length)return null;
+    const cal=ms.reduce((a,m)=>a+(m.macros.calories||0),0);
+    const prot=ms.reduce((a,m)=>a+(m.macros.protein||0),0);
+    if(cal>DAILY_GOALS.calories)return{bg:"#fef2f2",dot:"#ef4444",text:"#b91c1c"};
+    if(prot>=DAILY_GOALS.protein)return{bg:"#dcfce7",dot:"#22c55e",text:"#15803d"};
+    return{bg:"#fef9c3",dot:"#eab308",text:"#a16207"};
+  }
+
+  function navDate(delta){
+    const d=new Date(viewDate+"T12:00:00");d.setDate(d.getDate()+delta);
+    const nd=d.toISOString().split("T")[0];if(nd<=TODAY)setViewDate(nd);
+  }
+
+  const navBar=<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+    <button onClick={()=>navDate(-1)} style={{background:"transparent",border:"none",color:"#bbb",fontFamily:"monospace",fontSize:10,cursor:"pointer",padding:"4px 8px"}}>‹ PREV</button>
+    <span style={{fontFamily:"monospace",fontSize:11,color:"#aaa"}}>{viewDate===TODAY?"TODAY":fmtDate(viewDate)}</span>
+    <button onClick={()=>navDate(1)} style={{background:"transparent",border:"none",color:"#bbb",fontFamily:"monospace",fontSize:10,cursor:"pointer",padding:"4px 8px",opacity:viewDate===TODAY?.25:1,pointerEvents:viewDate===TODAY?"none":"auto"}}>NEXT ›</button>
+  </div>;
+
+  // steps weekly
+  const vd=new Date(viewDate+"T12:00:00"),dow=vd.getDay();
+  const mon=new Date(vd);mon.setDate(vd.getDate()-(dow===0?6:dow-1));
+  const weekDates=Array.from({length:7},(_,i)=>{const d=new Date(mon);d.setDate(mon.getDate()+i);return d.toISOString().split("T")[0];});
+  const weekSteps=weekDates.reduce((a,d)=>a+(stepsData[d]||0),0);
+  const todaySteps=stepsData[viewDate]||0;
+  const isWknd=[0,6].includes(new Date(viewDate+"T12:00:00").getDay());
+  const dayGoal=isWknd?STEP_GOALS.weekend:STEP_GOALS.day;
+
+  const sessLeft70=Math.max(0,GYM_JUNE-gymData.sessions);
+  const sessLeft200=Math.max(0,GYM_YEAR-gymData.sessions);
+  const dJ=daysUntil("2026-06-30"),dY=daysUntil("2026-12-31");
+  const pJ=Math.min((gymData.sessions/GYM_JUNE)*100,100);
+  const pY=Math.min((gymData.sessions/GYM_YEAR)*100,100);
+
+  return <div style={{minHeight:"100vh",background:"#f5f5f2"}}>
+    {/* Header */}
+    <div style={{background:"#fff",borderBottom:"1px solid #ebebeb",padding:"20px 18px 14px",display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
+      <div>
+        <div style={{fontSize:9,fontFamily:"'JetBrains Mono',monospace",color:"#ccc",letterSpacing:2,marginBottom:3}}>TUSHAR / TRACKER</div>
+        <div style={{fontSize:20,fontWeight:800,fontFamily:"'Syne',sans-serif",color:"#111"}}>
+          {tab==="gym"?"GYM LOG":tab==="history"?"HISTORY":tab==="skill"?"UPSKILLING":fmtDate(viewDate)}
+        </div>
+      </div>
+      <button onClick={()=>{setShowBackup(true);exportData();setImportText("");setImportMsg("");}} style={{background:"#f5f5f2",border:"1px solid #e8e8e8",borderRadius:8,padding:"6px 10px",fontSize:9,fontFamily:"'JetBrains Mono',monospace",color:"#777",letterSpacing:1,cursor:"pointer"}}>💾 BACKUP</button>
+    </div>
+
+    {/* Backup/Restore Modal */}
+    {showBackup&&<div onClick={()=>setShowBackup(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:1000,display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:40,paddingBottom:40,overflowY:"auto"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:16,padding:18,width:"calc(100% - 36px)",maxWidth:480,boxShadow:"0 10px 40px rgba(0,0,0,.2)"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+          <div style={{fontSize:16,fontWeight:800,fontFamily:"'Syne',sans-serif"}}>💾 Backup / Restore</div>
+          <button onClick={()=>setShowBackup(false)} style={{background:"transparent",border:"none",fontSize:22,color:"#ccc",cursor:"pointer"}}>×</button>
+        </div>
+
+        <div style={{fontSize:10,fontFamily:"'JetBrains Mono',monospace",color:"#999",letterSpacing:1.5,marginBottom:8}}>EXPORT — copy this text and save it anywhere safe</div>
+        <textarea readOnly value={backupText} onClick={e=>e.target.select()} style={{width:"100%",height:120,padding:10,borderRadius:8,border:"1px solid #e8e8e8",background:"#fafafa",fontFamily:"monospace",fontSize:10,color:"#555",resize:"vertical",boxSizing:"border-box"}}/>
+        <button onClick={copyBackup} style={{width:"100%",marginTop:8,padding:10,borderRadius:8,border:"none",background:"#16a34a",color:"#fff",fontFamily:"'JetBrains Mono',monospace",fontSize:11,cursor:"pointer",letterSpacing:1}}>📋 COPY BACKUP</button>
+
+        <div style={{height:1,background:"#f0f0f0",margin:"18px 0"}}/>
+
+        <div style={{fontSize:10,fontFamily:"'JetBrains Mono',monospace",color:"#999",letterSpacing:1.5,marginBottom:8}}>RESTORE — paste backup text here</div>
+        <textarea placeholder="Paste your backup JSON here..." value={importText} onChange={e=>setImportText(e.target.value)} style={{width:"100%",height:80,padding:10,borderRadius:8,border:"1px solid #e8e8e8",background:"#fff",fontFamily:"monospace",fontSize:10,color:"#555",resize:"vertical",boxSizing:"border-box"}}/>
+        <button onClick={importData} disabled={!importText.trim()} style={{width:"100%",marginTop:8,padding:10,borderRadius:8,border:"none",background:importText.trim()?"#2563eb":"#e8e8e8",color:importText.trim()?"#fff":"#bbb",fontFamily:"'JetBrains Mono',monospace",fontSize:11,cursor:"pointer",letterSpacing:1}}>↺ RESTORE FROM BACKUP</button>
+
+        {importMsg&&<div style={{marginTop:10,fontSize:11,fontFamily:"monospace",color:importMsg.startsWith("✓")?"#16a34a":"#ef4444",textAlign:"center"}}>{importMsg}</div>}
+
+        <div style={{marginTop:14,padding:10,background:"#fef9c3",borderRadius:8,border:"1px solid #fde68a"}}>
+          <div style={{fontSize:10,fontFamily:"monospace",color:"#a16207",lineHeight:1.5}}>
+            💡 Tip: Tap COPY BACKUP weekly. Paste into Notes app or email it to yourself. If anything ever breaks, paste it back and RESTORE.
+          </div>
+        </div>
+      </div>
+    </div>}
+
+    {/* Tabs */}
+    <div className="tab-bar">
+      {[["workout","🏋️"],["food","🥗"],["steps","👟"],["skill","🧠"],["gym","📊"],["history","📅"]].map(([k,l])=>
+        <button key={k} className={`tab-btn${tab===k?" active":""}`} onClick={()=>setTab(k)}>{l}</button>)}
+    </div>
+
+    <div style={{padding:"16px 18px"}}>
+
+    {/* ── WORKOUT TAB ── */}
+    {tab==="workout"&&<>
+      {navBar}
+      {!workoutLog[viewDate]&&!pickingPlan&&<div className="card" style={{textAlign:"center",padding:"24px 18px"}}>
+        <div style={{fontSize:32,marginBottom:8}}>🏋️</div>
+        <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:17,marginBottom:4}}>What's today's workout?</div>
+        <div style={{fontFamily:"monospace",fontSize:10,color:"#bbb",marginBottom:18}}>Select a day type to start tracking</div>
+        <button onClick={()=>setPickingPlan(true)} style={{background:"#16a34a",color:"#fff",border:"none",borderRadius:10,padding:"12px 28px",fontFamily:"'JetBrains Mono',monospace",fontSize:11,cursor:"pointer"}}>SELECT WORKOUT DAY</button>
+      </div>}
+      {pickingPlan&&<div className="card">
+        <div className="section-label" style={{marginBottom:14}}>PICK DAY TYPE</div>
+        {Object.entries(WP).map(([k,p])=><button key={k} onClick={()=>selectPlan(k)} style={{width:"100%",background:p.light,border:`1px solid ${p.border}`,borderRadius:10,padding:"12px 14px",marginBottom:8,cursor:"pointer",textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div>
+            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,color:p.color}}>{p.emoji} Day {k} — {p.label}</div>
+            <div style={{fontFamily:"monospace",fontSize:9,color:p.color,opacity:.7,marginTop:2}}>{p.timing}</div>
+          </div>
+          <span style={{color:p.color,fontSize:16}}>→</span>
+        </button>)}
+        <button onClick={()=>setPickingPlan(false)} style={{width:"100%",marginTop:4,background:"transparent",border:"1px solid #ebebeb",borderRadius:8,padding:8,fontFamily:"monospace",fontSize:10,color:"#bbb",cursor:"pointer"}}>CANCEL</button>
+      </div>}
+      {workoutLog[viewDate]&&<>
+        <WorkoutView planKey={workoutLog[viewDate].plan} loggedSets={workoutLog[viewDate].sets} onLogSet={(k,v)=>logSet(viewDate,k,v)}/>
+        <button onClick={()=>{if(window.confirm("Clear workout?"))saveWLog({...workoutLog,[viewDate]:undefined});}} style={{width:"100%",background:"transparent",border:"1px solid #fee2e2",color:"#fca5a5",borderRadius:8,padding:10,fontFamily:"monospace",fontSize:10,cursor:"pointer",marginTop:4}}>CHANGE / CLEAR WORKOUT</button>
+      </>}
+    </>}
+
+    {/* ── FOOD TAB ── */}
+    {tab==="food"&&<>
+      {navBar}
+      {/* Summary */}
+      <div className="card">
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
+          <div>
+            <div style={{fontSize:38,fontWeight:800,fontFamily:"'Syne',sans-serif",lineHeight:1}}>{totals.calories}</div>
+            <div style={{fontSize:9,color:"#ccc",fontFamily:"monospace",letterSpacing:1.5}}>KCAL TODAY</div>
+          </div>
+          <div style={{textAlign:"right"}}>
+            <div style={{fontSize:22,fontWeight:700,fontFamily:"'Syne',sans-serif",lineHeight:1,color:totals.calories>DAILY_GOALS.calories?"#ef4444":"#16a34a"}}>{Math.abs(DAILY_GOALS.calories-totals.calories)}</div>
+            <div style={{fontSize:9,color:"#ccc",fontFamily:"monospace",marginTop:2}}>{totals.calories>DAILY_GOALS.calories?"OVER":"REMAINING"}</div>
+          </div>
+        </div>
+        <MacroBar label="CALORIES" value={totals.calories} max={DAILY_GOALS.calories} color="#f59e0b" unit="kcal"/>
+        <MacroBar label="PROTEIN" value={totals.protein} max={DAILY_GOALS.protein} color="#16a34a"/>
+        <MacroBar label="CARBS" value={totals.carbs} max={DAILY_GOALS.carbs} color="#2563eb"/>
+        <MacroBar label="FAT" value={totals.fat} max={DAILY_GOALS.fat} color="#ea580c"/>
+        <MacroBar label="FIBER" value={totals.fiber} max={DAILY_GOALS.fiber} color="#7c3aed"/>
+      </div>
+      {/* Food calendar */}
+      <div className="card">
+        <div className="section-label">NUTRITION CALENDAR</div>
+        <CalGrid year={calMonth.y} month={calMonth.m}
+          onPrev={()=>setCalMonth(p=>{const d=new Date(p.y,p.m-1);return{y:d.getFullYear(),m:d.getMonth()};})}
+          onNext={()=>setCalMonth(p=>{const d=new Date(p.y,p.m+1);if(d<=new Date())return{y:d.getFullYear(),m:d.getMonth()};return p;})}
+          renderDay={(day,y,m)=>{
+            const ds=tods(y,m,day),col=foodColor(ds),sel=ds===viewDate,fut=ds>TODAY;
+            return <div onClick={()=>{if(!fut)setViewDate(ds);}} style={{aspectRatio:"1",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:8,fontSize:11,fontFamily:"monospace",cursor:fut?"default":"pointer",background:col?col.bg:ds===TODAY?"#f0fdf4":"transparent",color:col?col.text:ds===TODAY?"#16a34a":fut?"#e0e0e0":"#555",fontWeight:sel?700:400,border:sel?"2px solid #16a34a":"2px solid transparent",transition:"all .15s"}}>{day}</div>;
+          }}/>
+        <div style={{display:"flex",gap:10,marginTop:12,justifyContent:"center",flexWrap:"wrap"}}>
+          {[["#dcfce7","#16a34a","✓ Goal met"],["#fef9c3","#ca8a04","Low protein"],["#fef2f2","#ef4444","Over 1750"]].map(([bg,dot,lbl])=>
+            <div key={lbl} style={{display:"flex",alignItems:"center",gap:5}}>
+              <div style={{width:10,height:10,borderRadius:3,background:bg,border:`1px solid ${dot}`}}/>
+              <span style={{fontSize:9,fontFamily:"monospace",color:"#bbb"}}>{lbl}</span>
+            </div>)}
+        </div>
+      </div>
+      {/* Meals */}
+      <div className="section-label">MEALS · {todayMeals.length}</div>
+      {todayMeals.map(m=><MealCard key={m.id} meal={m} onDelete={deleteMeal}/>)}
+      {/* Add meal */}
+      {!adding?<button className="dashed-btn" onClick={()=>{setAdding(true);setFoodSearch("");setSearchRes([]);setMacros({calories:"",protein:"",carbs:"",fat:"",fiber:""});setForm({name:"",time:"",description:""});setFormErr("");}}>+ ADD MEAL</button>:
+      <div className="card" style={{padding:16}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <div className="section-label" style={{marginBottom:0}}>ADD MEAL</div>
+          <button onClick={()=>setAdding(false)} style={{background:"transparent",border:"none",color:"#ccc",fontSize:20,cursor:"pointer"}}>×</button>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:8,marginBottom:10}}>
+          <input className="iStyle" placeholder="Meal name" value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))}/>
+          <input className="iStyle" type="time" value={form.time} onChange={e=>setForm(f=>({...f,time:e.target.value}))} style={{width:90}}/>
+        </div>
+        <input className="iStyle" placeholder="🔍 Search — dal, egg, paneer, whey, roti..." value={foodSearch}
+          onChange={e=>{const q=e.target.value;setFoodSearch(q);if(q.trim().length<2){setSearchRes([]);return;}const low=q.toLowerCase();setSearchRes(FOOD_DB.filter(f=>f.name.toLowerCase().includes(low)).slice(0,6));}}
+          style={{marginBottom:8}}/>
+        {searchRes.length>0&&<div style={{border:"1px solid #e8e8e8",borderRadius:10,overflow:"hidden",marginBottom:10}}>
+          {searchRes.map((food,i)=><div key={i} onClick={()=>{
+            setMacros({calories:String(food.cal),protein:String(food.p),carbs:String(food.c),fat:String(food.f),fiber:String(food.fi)});
+            if(!form.name)setForm(f=>({...f,name:food.name.split("(")[0].trim(),description:food.name}));
+            else setForm(f=>({...f,description:food.name}));
+            setFoodSearch(food.name);setSearchRes([]);
+          }} style={{padding:"10px 14px",cursor:"pointer",borderBottom:i<searchRes.length-1?"1px solid #f5f5f5":"none",display:"flex",justifyContent:"space-between",alignItems:"center",background:"#fff"}}>
+            <div>
+              <div style={{fontSize:12,color:"#1a1a1a",fontWeight:500}}>{food.name}</div>
+              <div style={{fontSize:10,fontFamily:"monospace",color:"#bbb",marginTop:2}}>P:{food.p}g C:{food.c}g F:{food.f}g Fi:{food.fi}g</div>
+            </div>
+            <div style={{textAlign:"right",flexShrink:0,marginLeft:10}}>
+              <div style={{fontSize:15,fontWeight:700,fontFamily:"'Syne',sans-serif",color:"#16a34a"}}>{food.cal}</div>
+              <div style={{fontSize:8,fontFamily:"monospace",color:"#bbb"}}>kcal</div>
+            </div>
+          </div>)}
+        </div>}
+        {!foodSearch&&<div style={{marginBottom:10}}>
+          <div style={{fontSize:9,fontFamily:"monospace",color:"#ccc",letterSpacing:1,marginBottom:6}}>QUICK ADD</div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {[["Fulka","Fulka / Phulka (1 piece)"],["Egg","Whole Egg boiled (1)"],["Paneer","Paneer (100g)"],["Whey+water","Whey Protein (1 scoop in water)"],["Curd","Curd / Dahi (1 katori, 150g)"],["Banana","Banana (1 medium)"],["Almonds","Almonds (20g, ~15 pieces)"],["Chai","Chai with milk & sugar (1 cup)"]].map(([lbl,nm])=>{
+              const food=FOOD_DB.find(f=>f.name===nm);if(!food)return null;
+              return <button key={lbl} onClick={()=>{setMacros({calories:String(food.cal),protein:String(food.p),carbs:String(food.c),fat:String(food.f),fiber:String(food.fi)});if(!form.name)setForm(f=>({...f,name:lbl,description:food.name}));setFoodSearch(food.name);setSearchRes([]);}} style={{fontSize:10,fontFamily:"monospace",background:"#f5f5f2",border:"1px solid #e8e8e8",borderRadius:20,padding:"5px 12px",cursor:"pointer",color:"#555"}}>{lbl}</button>;
+            })}
+          </div>
+        </div>}
+        <div style={{background:"#fafafa",borderRadius:10,padding:12,marginBottom:10,border:"1px solid #f0f0f0"}}>
+          <div style={{fontSize:9,fontFamily:"monospace",color:"#ccc",letterSpacing:1,marginBottom:8}}>MACROS {macros.calories?`· ${macros.calories} kcal`:"· enter or search above"}</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:6}}>
+            {[["calories","Kcal","#f59e0b"],["protein","Prot","#16a34a"],["carbs","Carbs","#2563eb"],["fat","Fat","#ea580c"],["fiber","Fiber","#7c3aed"]].map(([k,lbl,col])=>
+              <div key={k} style={{textAlign:"center"}}>
+                <input type="number" value={macros[k]} onChange={e=>setMacros(m=>({...m,[k]:e.target.value}))}
+                  style={{width:"100%",background:"#fff",border:`1px solid ${macros[k]?"#e8e8e8":"#f0f0f0"}`,borderRadius:6,padding:"6px 4px",fontSize:13,fontFamily:"'Syne',sans-serif",fontWeight:700,color:macros[k]?col:"#ccc",textAlign:"center",outline:"none"}}/>
+                <div style={{fontSize:8,fontFamily:"monospace",color:"#bbb",marginTop:3}}>{lbl}</div>
+              </div>)}
+          </div>
+        </div>
+        {formErr&&<div style={{color:"#ef4444",fontSize:10,fontFamily:"monospace",marginBottom:8}}>{formErr}</div>}
+        <button onClick={addMeal} style={{width:"100%",padding:11,borderRadius:8,border:"none",background:macros.calories?"#16a34a":"#e8e8e8",color:macros.calories?"#fff":"#bbb",fontSize:11,fontFamily:"'JetBrains Mono',monospace",cursor:"pointer",letterSpacing:1}}>+ ADD TO LOG</button>
+      </div>}
+    </>}
+
+    {/* ── STEPS TAB ── */}
+    {tab==="steps"&&<>
+      {navBar}
+      <div className="card" style={{background:todaySteps>=dayGoal?"#dcfce7":"#fff",border:`1px solid ${todaySteps>=dayGoal?"#86efac":"#ebebeb"}`}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
+          <div>
+            <div style={{fontSize:9,fontFamily:"monospace",color:todaySteps>=dayGoal?"#15803d":"#bbb",letterSpacing:2,marginBottom:4}}>{isWknd?"WEEKEND":"WEEKDAY"} TARGET · {dayGoal.toLocaleString()}</div>
+            <div style={{fontSize:44,fontWeight:800,fontFamily:"'Syne',sans-serif",lineHeight:1,color:todaySteps>=dayGoal?"#15803d":"#1a1a1a"}}>{todaySteps>0?todaySteps.toLocaleString():"—"}</div>
+            <div style={{fontSize:10,fontFamily:"monospace",color:todaySteps>=dayGoal?"#16a34a":"#bbb",marginTop:3}}>{todaySteps>=dayGoal?"✓ Target met!":todaySteps>0?`${(dayGoal-todaySteps).toLocaleString()} to go`:"Log your steps below"}</div>
+          </div>
+          {todaySteps>=dayGoal&&<div style={{fontSize:32}}>🟢</div>}
+        </div>
+        <div style={{height:8,background:"rgba(0,0,0,.06)",borderRadius:4,overflow:"hidden"}}>
+          <div style={{height:"100%",width:`${Math.min((todaySteps/dayGoal)*100,100)}%`,background:todaySteps>=dayGoal?"#22c55e":"#94a3b8",borderRadius:4,transition:"width .5s"}}/>
+        </div>
+      </div>
+      <div className="card">
+        <div className="section-label">LOG STEPS</div>
+        <div style={{display:"flex",gap:8,marginBottom:8}}>
+          <input type="number" className="iStyle" placeholder="e.g. 8500" value={stepInput} onChange={e=>setStepInput(e.target.value)} style={{flex:1}}/>
+          <button onClick={()=>{const s=parseInt(stepInput)||0;saveSteps({...stepsData,[viewDate]:s});}} style={{background:"#16a34a",color:"#fff",border:"none",borderRadius:8,padding:"9px 18px",fontFamily:"monospace",fontSize:10,cursor:"pointer"}}>SAVE</button>
+        </div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          {[3000,5000,6000,8000,10000,12000].map(n=><button key={n} onClick={()=>{setStepInput(String(n));saveSteps({...stepsData,[viewDate]:n});}} style={{fontSize:10,fontFamily:"monospace",background:"#f5f5f2",border:"1px solid #e8e8e8",borderRadius:6,padding:"5px 10px",cursor:"pointer",color:"#555"}}>{n/1000}k</button>)}
+        </div>
+      </div>
+      {/* Weekly */}
+      <div className="card" style={{background:weekSteps>=STEP_GOALS.week?"#dcfce7":"#fff",border:`1px solid ${weekSteps>=STEP_GOALS.week?"#86efac":"#ebebeb"}`}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <div>
+            <div style={{fontSize:9,fontFamily:"monospace",color:weekSteps>=STEP_GOALS.week?"#15803d":"#bbb",letterSpacing:2,marginBottom:3}}>THIS WEEK · TARGET {STEP_GOALS.week.toLocaleString()}</div>
+            <div style={{fontSize:28,fontWeight:800,fontFamily:"'Syne',sans-serif",color:weekSteps>=STEP_GOALS.week?"#15803d":"#1a1a1a"}}>{weekSteps.toLocaleString()}</div>
+          </div>
+          {weekSteps>=STEP_GOALS.week&&<div style={{fontSize:28}}>🟢</div>}
+        </div>
+        <div style={{height:6,background:"rgba(0,0,0,.06)",borderRadius:3,overflow:"hidden",marginBottom:12}}>
+          <div style={{height:"100%",width:`${Math.min((weekSteps/STEP_GOALS.week)*100,100)}%`,background:weekSteps>=STEP_GOALS.week?"#22c55e":"#94a3b8",borderRadius:3}}/>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4}}>
+          {weekDates.map(d=>{
+            const s=stepsData[d]||0,wk=[0,6].includes(new Date(d+"T12:00:00").getDay()),g=wk?STEP_GOALS.weekend:STEP_GOALS.day,met=s>=g,fut=d>TODAY;
+            return <div key={d} onClick={()=>{if(!fut)setViewDate(d);}} style={{textAlign:"center",cursor:fut?"default":"pointer",opacity:fut?.3:1}}>
+              <div style={{fontSize:8,fontFamily:"monospace",color:"#bbb",marginBottom:3}}>{new Date(d+"T12:00:00").toLocaleDateString("en-IN",{weekday:"short"}).slice(0,2).toUpperCase()}</div>
+              <div style={{background:met?"#dcfce7":d===TODAY?"#f0fdf4":"#f5f5f2",border:met?"1.5px solid #86efac":d===TODAY?"1.5px solid #bbf7d0":"1.5px solid #ebebeb",borderRadius:8,padding:"6px 2px",minHeight:36,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+                <div style={{fontSize:10,fontWeight:700,fontFamily:"'Syne',sans-serif",color:met?"#15803d":d===TODAY?"#16a34a":"#555"}}>{s>0?(s>=1000?Math.round(s/1000)+"k":s):"·"}</div>
+                {met&&<div style={{fontSize:8,color:"#22c55e"}}>✓</div>}
+              </div>
+            </div>;
+          })}
+        </div>
+      </div>
+      {/* Steps Calendar */}
+      <div className="card">
+        <div className="section-label">STEPS CALENDAR</div>
+        <CalGrid year={calMonth.y} month={calMonth.m}
+          onPrev={()=>setCalMonth(p=>{const d=new Date(p.y,p.m-1);return{y:d.getFullYear(),m:d.getMonth()};})}
+          onNext={()=>setCalMonth(p=>{const d=new Date(p.y,p.m+1);if(d<=new Date())return{y:d.getFullYear(),m:d.getMonth()};return p;})}
+          renderDay={(day,y,m)=>{
+            const ds=tods(y,m,day),s=stepsData[ds]||0,wk=[0,6].includes(new Date(ds+"T12:00:00").getDay()),g=wk?STEP_GOALS.weekend:STEP_GOALS.day,met=s>=g,sel=ds===viewDate,fut=ds>TODAY;
+            return <div onClick={()=>{if(!fut)setViewDate(ds);}} style={{aspectRatio:"1",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",borderRadius:8,fontSize:10,fontFamily:"monospace",cursor:fut?"default":"pointer",background:met?"#dcfce7":ds===TODAY?"#f0fdf4":"transparent",color:met?"#15803d":ds===TODAY?"#16a34a":fut?"#e0e0e0":"#555",fontWeight:sel?700:400,border:sel?"2px solid #16a34a":met?"2px solid #86efac":"2px solid transparent",gap:1}}>
+              {day}{met&&<div style={{fontSize:7,color:"#22c55e"}}>✓</div>}{s>0&&!met&&<div style={{fontSize:7,color:"#94a3b8"}}>{Math.round(s/1000)}k</div>}
+            </div>;
+          }}/>
+      </div>
+    </>}
+
+
+    {/* ── SKILL TAB ── */}
+    {tab==="skill"&&(()=>{
+      const todaySkill=skillData[viewDate];
+      const todayMins=todaySkill?.minutes||0;
+      const dayMet=todayMins>=SKILL_GOAL.day;
+      // weekly
+      const vds=new Date(viewDate+"T12:00:00"),vdow=vds.getDay();
+      const wmon=new Date(vds);wmon.setDate(vds.getDate()-(vdow===0?6:vdow-1));
+      const wdates=Array.from({length:7},(_,i)=>{const d=new Date(wmon);d.setDate(wmon.getDate()+i);return d.toISOString().split("T")[0];});
+      const wMins=wdates.reduce((a,d)=>a+(skillData[d]?.minutes||0),0);
+      const wDaysMet=wdates.filter(d=>(skillData[d]?.minutes||0)>=SKILL_GOAL.day).length;
+      const wMet=wMins>=SKILL_GOAL.week;
+      // streak
+      let streak=0;const today=new Date(TODAY+"T12:00:00");
+      for(let i=0;i<365;i++){const d=new Date(today);d.setDate(today.getDate()-i);const ds=d.toISOString().split("T")[0];if((skillData[ds]?.minutes||0)>=SKILL_GOAL.day)streak++;else break;}
+      // tag breakdown for week
+      const tagBreakdown={};wdates.forEach(d=>{const e=skillData[d];if(e){tagBreakdown[e.tag||"Other"]=(tagBreakdown[e.tag||"Other"]||0)+e.minutes;}});
+
+      return <div>
+        {navBar}
+        {/* Today card */}
+        <div className="card" style={{background:dayMet?"#faf5ff":"#fff",border:`1px solid ${dayMet?"#e9d5ff":"#ebebeb"}`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
+            <div>
+              <div style={{fontSize:9,fontFamily:"monospace",color:dayMet?"#7c3aed":"#bbb",letterSpacing:2,marginBottom:4}}>DAILY TARGET · {SKILL_GOAL.day} MIN</div>
+              <div style={{fontSize:44,fontWeight:800,fontFamily:"'Syne',sans-serif",lineHeight:1,color:dayMet?"#7c3aed":"#1a1a1a"}}>{todayMins>0?todayMins:"—"}<span style={{fontSize:18,color:"#bbb",marginLeft:6}}>min</span></div>
+              <div style={{fontSize:10,fontFamily:"monospace",color:dayMet?"#7c3aed":"#bbb",marginTop:3}}>{dayMet?`✓ Target met${todayMins>SKILL_GOAL.day?` (+${todayMins-SKILL_GOAL.day} min)`:"!"}`:todayMins>0?`${SKILL_GOAL.day-todayMins} min to go`:"Log your session below"}</div>
+            </div>
+            {streak>0&&<div style={{textAlign:"right"}}>
+              <div style={{fontSize:32,lineHeight:1}}>🔥</div>
+              <div style={{fontSize:18,fontWeight:800,fontFamily:"'Syne',sans-serif",color:"#ea580c",lineHeight:1}}>{streak}</div>
+              <div style={{fontSize:8,fontFamily:"monospace",color:"#bbb"}}>DAY STREAK</div>
+            </div>}
+          </div>
+          <div style={{height:8,background:"rgba(0,0,0,.06)",borderRadius:4,overflow:"hidden"}}>
+            <div style={{height:"100%",width:`${Math.min((todayMins/SKILL_GOAL.day)*100,100)}%`,background:dayMet?"#7c3aed":"#94a3b8",borderRadius:4,transition:"width .5s"}}/>
+          </div>
+          {todaySkill&&todaySkill.note&&!editingSkill&&<div style={{marginTop:10,padding:"8px 10px",background:"rgba(124,58,237,.08)",borderRadius:8,fontSize:11,color:"#555",fontStyle:"italic"}}>{"\"" + todaySkill.note + "\""}</div>}
+          {todaySkill&&todaySkill.tag&&!editingSkill&&<div style={{marginTop:8,display:"inline-block",fontSize:9,fontFamily:"monospace",background:SKILL_TAG_COLORS[todaySkill.tag]+"22",color:SKILL_TAG_COLORS[todaySkill.tag],borderRadius:4,padding:"2px 8px",letterSpacing:1}}>{todaySkill.tag.toUpperCase()}</div>}
+        </div>
+
+        {/* Log form */}
+        <div className="card">
+          <div className="section-label">{todaySkill&&!editingSkill?"UPDATE TODAY'S LOG":"LOG TODAY'S SESSION"}</div>
+          <div style={{display:"flex",gap:8,marginBottom:10}}>
+            <input type="number" className="iStyle" placeholder="Minutes (e.g. 45)" value={skillMin} onChange={e=>{setSkillMin(e.target.value);setEditingSkill(true);}} style={{flex:1}}/>
+            <button onClick={()=>{
+              const m=parseInt(skillMin)||0;
+              if(m<=0)return;
+              saveSkill({...skillData,[viewDate]:{minutes:m,note:skillNote.trim(),tag:skillTag}});
+              setEditingSkill(false);
+            }} style={{background:"#7c3aed",color:"#fff",border:"none",borderRadius:8,padding:"9px 18px",fontFamily:"monospace",fontSize:10,cursor:"pointer"}}>SAVE</button>
+          </div>
+          {/* Quick min buttons */}
+          <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
+            {[15,30,45,60,90,120].map(n=><button key={n} onClick={()=>{setSkillMin(String(n));setEditingSkill(true);}} style={{fontSize:10,fontFamily:"monospace",background:"#f5f5f2",border:"1px solid #e8e8e8",borderRadius:6,padding:"5px 10px",cursor:"pointer",color:"#555"}}>{n}m</button>)}
+          </div>
+          {/* Tag picker */}
+          <div style={{fontSize:9,fontFamily:"monospace",color:"#bbb",letterSpacing:1,marginBottom:6}}>CATEGORY</div>
+          <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
+            {SKILL_TAGS.map(t=>{const active=skillTag===t;return <button key={t} onClick={()=>{setSkillTag(t);setEditingSkill(true);}} style={{fontSize:10,fontFamily:"monospace",background:active?SKILL_TAG_COLORS[t]:"#f5f5f2",color:active?"#fff":"#777",border:`1px solid ${active?SKILL_TAG_COLORS[t]:"#e8e8e8"}`,borderRadius:6,padding:"5px 12px",cursor:"pointer",letterSpacing:0.5}}>{t}</button>;})}
+          </div>
+          {/* Note */}
+          <textarea placeholder="What did you learn? (optional)" value={skillNote} onChange={e=>{setSkillNote(e.target.value);setEditingSkill(true);}} rows={2} style={{width:"100%",padding:"9px 11px",borderRadius:8,border:"1px solid #e8e8e8",background:"#fafafa",fontFamily:"inherit",fontSize:12,color:"#1a1a1a",resize:"vertical",boxSizing:"border-box",outline:"none"}}/>
+        </div>
+
+        {/* Weekly */}
+        <div className="card" style={{background:wMet?"#faf5ff":"#fff",border:`1px solid ${wMet?"#e9d5ff":"#ebebeb"}`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+            <div>
+              <div style={{fontSize:9,fontFamily:"monospace",color:wMet?"#7c3aed":"#bbb",letterSpacing:2,marginBottom:3}}>THIS WEEK · TARGET {SKILL_GOAL.week} MIN</div>
+              <div style={{fontSize:28,fontWeight:800,fontFamily:"'Syne',sans-serif",color:wMet?"#7c3aed":"#1a1a1a"}}>{wMins}<span style={{fontSize:14,color:"#bbb",marginLeft:4}}>min</span></div>
+              <div style={{fontSize:10,fontFamily:"monospace",color:"#bbb",marginTop:2}}>{wDaysMet}/7 days hit target</div>
+            </div>
+            {wMet&&<div style={{fontSize:28}}>🟣</div>}
+          </div>
+          <div style={{height:6,background:"rgba(0,0,0,.06)",borderRadius:3,overflow:"hidden",marginBottom:12}}>
+            <div style={{height:"100%",width:`${Math.min((wMins/SKILL_GOAL.week)*100,100)}%`,background:wMet?"#7c3aed":"#94a3b8",borderRadius:3}}/>
+          </div>
+          {/* day strip */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4}}>
+            {wdates.map(d=>{
+              const sk=skillData[d],m=sk?.minutes||0,met=m>=SKILL_GOAL.day,fut=d>TODAY;
+              const tagCol=sk?SKILL_TAG_COLORS[sk.tag||"Other"]:null;
+              return <div key={d} onClick={()=>{if(!fut)setViewDate(d);}} style={{textAlign:"center",cursor:fut?"default":"pointer",opacity:fut?.3:1}}>
+                <div style={{fontSize:8,fontFamily:"monospace",color:"#bbb",marginBottom:3}}>{new Date(d+"T12:00:00").toLocaleDateString("en-IN",{weekday:"short"}).slice(0,2).toUpperCase()}</div>
+                <div style={{background:met?"#faf5ff":d===TODAY?"#fafafa":"#f5f5f2",border:met?`1.5px solid ${tagCol||"#c4b5fd"}`:d===TODAY?"1.5px solid #e0e0e0":"1.5px solid #ebebeb",borderRadius:8,padding:"6px 2px",minHeight:36,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+                  <div style={{fontSize:10,fontWeight:700,fontFamily:"'Syne',sans-serif",color:met?(tagCol||"#7c3aed"):d===TODAY?"#888":"#555"}}>{m>0?m+"m":"·"}</div>
+                  {met&&<div style={{fontSize:8,color:tagCol||"#7c3aed"}}>✓</div>}
+                </div>
+              </div>;
+            })}
+          </div>
+          {/* Tag breakdown */}
+          {Object.keys(tagBreakdown).length>0&&<div style={{marginTop:14,paddingTop:12,borderTop:"1px solid #f0f0f0"}}>
+            <div style={{fontSize:9,fontFamily:"monospace",color:"#bbb",letterSpacing:1,marginBottom:6}}>BREAKDOWN</div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {Object.entries(tagBreakdown).sort((a,b)=>b[1]-a[1]).map(([tag,mins])=><div key={tag} style={{fontSize:10,fontFamily:"monospace",background:SKILL_TAG_COLORS[tag]+"15",color:SKILL_TAG_COLORS[tag],borderRadius:6,padding:"4px 10px"}}>{tag}: {mins}m</div>)}
+            </div>
+          </div>}
+        </div>
+
+        {/* Calendar */}
+        <div className="card">
+          <div className="section-label">UPSKILLING CALENDAR</div>
+          <CalGrid year={calMonth.y} month={calMonth.m}
+            onPrev={()=>setCalMonth(p=>{const d=new Date(p.y,p.m-1);return{y:d.getFullYear(),m:d.getMonth()};})}
+            onNext={()=>setCalMonth(p=>{const d=new Date(p.y,p.m+1);if(d<=new Date())return{y:d.getFullYear(),m:d.getMonth()};return p;})}
+            renderDay={(day,y,m)=>{
+              const ds=tods(y,m,day),sk=skillData[ds],mins=sk?.minutes||0,met=mins>=SKILL_GOAL.day,sel=ds===viewDate,fut=ds>TODAY;
+              const tagCol=sk?SKILL_TAG_COLORS[sk.tag||"Other"]:null;
+              return <div onClick={()=>{if(!fut)setViewDate(ds);}} style={{aspectRatio:"1",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",borderRadius:8,fontSize:10,fontFamily:"monospace",cursor:fut?"default":"pointer",background:met?"#faf5ff":ds===TODAY?"#fafafa":"transparent",color:met?(tagCol||"#7c3aed"):ds===TODAY?"#1a1a1a":fut?"#e0e0e0":"#555",fontWeight:sel||met?700:400,border:sel?"2px solid #7c3aed":met?`2px solid ${tagCol||"#c4b5fd"}`:"2px solid transparent",gap:1}}>
+                {day}{met&&<div style={{fontSize:7,color:tagCol||"#7c3aed"}}>{mins}m</div>}{!met&&mins>0&&<div style={{fontSize:7,color:"#94a3b8"}}>{mins}m</div>}
+              </div>;
+            }}/>
+          {/* legend */}
+          <div style={{display:"flex",gap:10,marginTop:12,justifyContent:"center",flexWrap:"wrap"}}>
+            {SKILL_TAGS.map(t=><div key={t} style={{display:"flex",alignItems:"center",gap:4}}>
+              <div style={{width:10,height:10,borderRadius:3,background:SKILL_TAG_COLORS[t]+"22",border:`1px solid ${SKILL_TAG_COLORS[t]}`}}/>
+              <span style={{fontSize:9,fontFamily:"monospace",color:"#bbb"}}>{t}</span>
+            </div>)}
+          </div>
+        </div>
+      </div>;
+    })()}
+
+    {/* ── PROGRESS TAB ── */}
+    {tab==="gym"&&<>
+      <div className="card">
+        <div style={{textAlign:"center",marginBottom:18}}>
+          <div style={{fontSize:64,fontWeight:800,fontFamily:"'Syne',sans-serif",lineHeight:1,color:"#16a34a"}}>{gymData.sessions}</div>
+          <div style={{fontSize:10,color:"#bbb",fontFamily:"monospace",letterSpacing:2}}>SESSIONS TOTAL</div>
+        </div>
+        {[{goal:GYM_JUNE,left:sessLeft70,days:dJ,pct:pJ,color:"#ea580c",label:"JUNE GOAL"},{goal:GYM_YEAR,left:sessLeft200,days:dY,pct:pY,color:"#2563eb",label:"YEAR GOAL"}].map(g=>
+          <div key={g.goal} style={{marginBottom:14}}>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:10,fontFamily:"monospace",color:"#999",marginBottom:5}}>
+              <span>{g.label} <span style={{color:g.color,fontWeight:700}}>{g.goal}</span></span>
+              <span>{g.pct>=100?<span style={{color:"#16a34a"}}>✓ DONE</span>:`${g.left} left · ${g.days}d`}</span>
+            </div>
+            <div style={{height:8,background:"#f0f0f0",borderRadius:4,overflow:"hidden"}}>
+              <div style={{height:"100%",width:`${g.pct}%`,background:g.pct>=100?"#16a34a":g.color,borderRadius:4,transition:"width .5s"}}/>
+            </div>
+            {g.left>0&&g.days>0&&<div style={{fontSize:10,color:"#bbb",fontFamily:"monospace",marginTop:4}}>→ 1 session every <span style={{color:g.color}}>{(g.days/g.left).toFixed(1)} days</span></div>}
+          </div>)}
+      </div>
+      <div className="card">
+        <div className="section-label">SESSION CALENDAR · TAP TO MARK</div>
+        <CalGrid year={calMonth.y} month={calMonth.m}
+          onPrev={()=>setCalMonth(p=>{const d=new Date(p.y,p.m-1);return{y:d.getFullYear(),m:d.getMonth()};})}
+          onNext={()=>setCalMonth(p=>{const d=new Date(p.y,p.m+1);if(d<=new Date())return{y:d.getFullYear(),m:d.getMonth()};return p;})}
+          renderDay={(day,y,m)=>{
+            const ds=tods(y,m,day),on=gymData.gymDates[ds],wp=workoutLog[ds]?WP[workoutLog[ds].plan]:null,fut=ds>TODAY;
+            return <div onClick={()=>{if(!fut)toggleGym(ds);}} style={{aspectRatio:"1",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",borderRadius:8,fontSize:10,fontFamily:"monospace",cursor:fut?"default":"pointer",background:on?"#dcfce7":ds===TODAY?"#f0fdf4":"transparent",color:on?"#15803d":ds===TODAY?"#16a34a":fut?"#e0e0e0":"#555",fontWeight:on?700:400,border:on?"2px solid #86efac":ds===TODAY?"2px solid #bbf7d0":"2px solid transparent",userSelect:"none",gap:1}}>
+              {on?"✓":day}{wp&&<div style={{fontSize:7,color:wp.color}}>{wp.emoji}</div>}
+            </div>;
+          }}/>
+        <div style={{marginTop:10,fontSize:10,fontFamily:"monospace",color:"#bbb",textAlign:"center"}}>{Object.values(gymData.gymDates).filter(Boolean).length} via calendar · 38 pre-existing</div>
+      </div>
+    </>}
+
+    {/* ── HISTORY TAB ── */}
+    {tab==="history"&&<>
+      <div className="section-label">PAST DAYS</div>
+      {Object.keys(allDays).sort((a,b)=>b.localeCompare(a)).map(date=>{
+        const ms=allDays[date]?.meals||[],cal=ms.reduce((a,m)=>a+(m.macros.calories||0),0),prot=ms.reduce((a,m)=>a+(m.macros.protein||0),0),fib=ms.reduce((a,m)=>a+(m.macros.fiber||0),0),col=foodColor(date),wp=workoutLog[date]?WP[workoutLog[date].plan]:null;
+        return <div key={date} onClick={()=>{setViewDate(date);setTab("food");}} style={{background:col?col.bg:"#fff",border:`1px solid ${col?col.dot+"44":"#ebebeb"}`,borderRadius:12,padding:"12px 14px",marginBottom:8,cursor:"pointer",boxShadow:"0 1px 4px rgba(0,0,0,.03)"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div>
+              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,color:col?col.text:date===TODAY?"#16a34a":"#1a1a1a"}}>{date===TODAY?"Today":fmtDate(date)}</div>
+                {wp&&<span style={{fontSize:9,background:wp.light,color:wp.color,border:`1px solid ${wp.border}`,borderRadius:4,padding:"1px 6px",fontFamily:"monospace"}}>{wp.emoji} {wp.label}</span>}
+                {gymData.gymDates[date]&&!wp&&<span style={{fontSize:9,background:"#f0fdf4",color:"#16a34a",border:"1px solid #bbf7d0",borderRadius:4,padding:"1px 6px",fontFamily:"monospace"}}>🏋️ gym</span>}
+              </div>
+              <div style={{fontFamily:"monospace",fontSize:10,color:"#aaa",marginTop:2}}>{ms.length} meals · {prot}g protein · {fib}g fiber{stepsData[date]?` · ${stepsData[date].toLocaleString()} steps`:""}{skillData[date]?` · ${skillData[date].minutes}m skill`:""}</div>
+            </div>
+            <div style={{textAlign:"right"}}>
+              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:20,color:col?col.text:"#1a1a1a"}}>{cal}</div>
+              <div style={{fontSize:8,color:"#bbb",fontFamily:"monospace"}}>KCAL</div>
+            </div>
+          </div>
+          <div style={{marginTop:8,height:3,background:"rgba(0,0,0,.06)",borderRadius:2,overflow:"hidden"}}>
+            <div style={{height:"100%",width:`${Math.min((cal/DAILY_GOALS.calories)*100,100)}%`,background:col?col.dot:"#e0e0e0",borderRadius:2}}/>
+          </div>
+        </div>;
+      })}
+      {Object.keys(allDays).length===0&&<div style={{textAlign:"center",fontFamily:"monospace",fontSize:11,color:"#ccc",padding:"40px 0"}}>No history yet.</div>}
+    </>}
+
+    </div>
+  </div>;
+}
+
+ReactDOM.render(<App/>,document.getElementById("root"));
+</script>
+</body>
+</html>
